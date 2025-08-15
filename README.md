@@ -1,4 +1,4 @@
-# Bank Management System in C
+# Bank Management System
 
 A console-based Bank Management System written in C that demonstrates file handling, account creation, deposit/withdrawal, balance checks, PIN verification, and account deletion on Windows. Perfect for students and beginners learning C programming and persistent storage.
 
