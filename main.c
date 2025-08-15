@@ -9,6 +9,7 @@
 int choice;
 int accountNumber;
 int getAccountNumber;
+int foundAccounts = 0;
 int getPin;
 int pin;
 
@@ -26,20 +27,18 @@ void displayAccounts() {
         return;
     }
 
-    if (fgets(line, sizeof(line), file) == NULL) {
-        printf("\nNo accounts found. Retruning back to menu.\n");
-        Sleep(1500);
-        fclose(file);
-        return;
-    }
-
-    printf("%-18s %-30s %-10s\n", "Account Number", "Name", "Balance");
+    printf("\n%-18s %-30s %-10s\n", "Account Number", "Name", "Balance");
     printf("----------------------------------------------------------\n");
 
     while (fgets(line, sizeof(line), file)) {
         if (sscanf(line, "%d|%*d|%[^|]|%c|%f", &accountNumber, name, &currency, &balance) == 4) {
             printf("%-18d %-30s %c%-10.2f\n", accountNumber, name, currency, balance);
+            foundAccounts = 1;
         }
+    }
+
+    if (!foundAccounts) {
+        printf("\nNo accounts found.\n");
     }
     fclose(file);
 }
