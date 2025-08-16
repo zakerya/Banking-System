@@ -7,17 +7,26 @@
 #define FILE_NAME "bank.dat"
 
 int choice;
+
 int accountNumber;
 int getAccountNumber;
-int foundAccounts = 0;
-int getPin;
+int storedAccountNumber;
+
 int pin;
+int getPin;
+int storedPin;
 
 char name[50];
+char storedName[50];
+
 char line[200];
+
 char currency = '$';
+char storedCurrency = '$';
 
 float balance;
+float storedBalance;
+
 float amount;
 
 void displayAccounts() {
@@ -30,14 +39,16 @@ void displayAccounts() {
     printf("\n%-18s %-30s %-10s\n", "Account Number", "Name", "Balance");
     printf("----------------------------------------------------------\n");
 
+    int accountsFound = 0;
+
     while (fgets(line, sizeof(line), file)) {
         if (sscanf(line, "%d|%*d|%[^|]|%c|%f", &accountNumber, name, &currency, &balance) == 4) {
             printf("%-18d %-30s %c%-10.2f\n", accountNumber, name, currency, balance);
-            foundAccounts = 1;
+            accountsFound = 1;
         }
     }
 
-    if (!foundAccounts) {
+    if (!accountsFound) {
         printf("\nNo accounts found.\n");
     }
     fclose(file);
@@ -69,31 +80,135 @@ void createAccount() {
     printf("Enter PIN: ");
     scanf("%d", &pin);
     printf("Enter name: ");
-    scanf(" %[^\n]", name); // Read string with spaces
-    balance = 0.0f; // Initialize balance to 0
+    scanf(" %[^\n]", name);
+    balance = 0.0f;
     printf("Account created successfully!\n");
     saveAccount();
 }
 
 void depositMoney() {
-    printf("Enter amount to deposit: ");
-    scanf("%f", &amount);
-    if (amount > 0) {
-        balance += amount;
-        printf("Deposit successful! New balance: %.2f\n", balance);
+
+    FILE *file = fopen(FILE_NAME, "r");
+    if (file == NULL) {
+        perror("No account found. Please create an account first.");
+        return;
+    }
+
+    printf("Enter account number: ");
+    scanf("%d", &getAccountNumber);
+
+    int accountsFound = 0;
+
+    while (fgets(line, sizeof(line), file)) {
+        if (sscanf(line, "%d|", &storedAccountNumber) == 1) {
+            if (storedAccountNumber == getAccountNumber) {
+                accountsFound = 1;
+                break;
+            }
+        }
+    }
+
+    if (!accountsFound) {
+        printf("\nThis account does not exist in the database.\n");
+        fclose(file);
+        return;
+    }
+
+    printf("Enter PIN: ");
+    scanf("%d", &getPin);
+
+    rewind(file);
+
+    char tempFileName[] = "temp.dat";
+    FILE *tempFile = fopen(tempFileName, "w");
+    if (tempFile == NULL) {
+        perror("Error creating temp file");
+        fclose(file);
+        return;
+    }
+
+    while (fgets(line, sizeof(line), file)) {
+        if (sscanf(line, "%d|%d|%[^|]|%c|%f", &storedAccountNumber, &storedPin, storedName, &storedCurrency, &storedBalance) == 5) {
+                if (storedAccountNumber == getAccountNumber && storedPin == getPin) {
+                    printf("Enter amount to deposit: ");
+                    scanf("%f", &amount);
+                    if (amount > 0) {
+                        storedBalance += amount;
+                        printf("\nDeposit successful! New balance: %c%.2f\n", storedCurrency, storedBalance);
+                    } else {
+                        printf("Invalid deposit amount.\n");
+                    }
+                accountsFound = 1;
+            }
+            fprintf(tempFile, "%d|%d|%s|%c|%.2f\n", storedAccountNumber, storedPin, storedName, storedCurrency, storedBalance);
+        }
+    }
+
+    fclose(file);
+    fclose(tempFile);
+
+    if (accountsFound) {
+        remove (FILE_NAME);
+        rename(tempFileName, FILE_NAME);
     } else {
-        printf("Invalid deposit amount.\n");
+        printf("\nNo matching account found for the provided account number and PIN.\n");
+        remove (tempFileName);
     }
 }
 
 void withdrawMoney() {
-    printf("Enter amount to withdraw: ");
-    scanf("%f", &amount);
-    if (amount > 0 && amount <= balance) {
-        balance -= amount;
-        printf("Withdrawal successful! New balance: %.2f\n", balance);
-    } else {
-        printf("Invalid withdrawal amount or insufficient funds.\n");
+
+    FILE *file = fopen(FILE_NAME, "r");
+    if (file == NULL) {
+        perror("No account found. Please create an account first.");
+        return;
+    }
+
+    printf("Enter account number: ");
+    scanf("%d", &getAccountNumber);
+    printf("Enter PIN: ");
+    scanf("%d", &getPin);
+
+    char tempFileName[] = "temp.dat";
+    FILE *tempFile = fopen(tempFileName, "w");
+    if (tempFile == NULL) {
+        perror("Error creating temp file");
+        fclose(file);
+        return;
+    }
+
+    int accountsFound = 0;
+
+    while (fgets(line, sizeof(line), file)) {
+        if (sscanf(line, "%d|%d|%[^|]|%c|%f", &storedAccountNumber, &storedPin, storedName, &storedCurrency, &storedBalance) == 5) {
+            if (storedAccountNumber == getAccountNumber && storedPin == getPin) {
+                printf("Enter amount to withdraw: ");
+                scanf("%f", &amount);
+                if (amount > 0 && amount <= storedBalance) {
+                    storedBalance -= amount;
+                    printf("\nWithdrawal successful! New balance: %c%.2f\n", storedCurrency, storedBalance);
+                    accountsFound = 1;
+                } else if (amount > storedBalance) {
+                    printf("Insufficient funds. Withdrawal failed.\n");
+                    accountsFound = 1;
+                } else {
+                    printf("Invalid withdrawal amount.\n");
+                    accountsFound = 1;
+                }
+            }
+
+            fprintf(tempFile, "%d|%d|%s|%c|%.2f\n", storedAccountNumber, storedPin, storedName, storedCurrency, storedBalance);
+        }
+    }
+
+    fclose(file);
+    fclose(tempFile);
+
+    remove(FILE_NAME);
+    rename(tempFileName, FILE_NAME);
+
+    if (!accountsFound) {
+        printf("Invalid account number or PIN.\n");
     }
 }
 
@@ -105,42 +220,27 @@ void checkBalance() {
         return;
     }
 
-    fscanf(file, "%d", &accountNumber);
-    fscanf(file, "%d", &pin);
-    fgetc(file);
-    fgets(name, sizeof(name), file);
-    name[strcspn(name, "\n")] = '\0';
-    fscanf(file, "%f", &balance);
-    fclose(file);
+    printf("Enter account number: ");
+    scanf("%d", &getAccountNumber);
+    printf("Enter PIN: ");
+    scanf("%d", &getPin);
 
-    while (1) {
-        printf("Enter account number: ");
-        scanf("%d", &getAccountNumber);
-        printf("Enter PIN: "); 
-        scanf("%d", &getPin);
+    int accountsFound = 0;
 
-        if (getAccountNumber == accountNumber && getPin == pin) {
-            printf("Current balance: %.2f\n", balance);
-            break;
-        }
-
-        while (1) {
-            if (getAccountNumber != accountNumber || getPin != pin) {
-            printf("Invalid account number or PIN. Please try again.\n");
-            printf("Enter account number: ");
-            scanf("%d", &getAccountNumber);
-            printf("Enter PIN: ");
-            scanf("%d", &getPin);
-            }
-
-            if (getAccountNumber == accountNumber && getPin == pin) {
-                printf("\nCurrent balance: %.2f\n", balance);
-                printf("\nBlanced checked successfully. Returning back to menu.\n");
-                break;
+    while (fgets(line, sizeof(line), file)) {
+        if (sscanf(line, "%d|%d|%[^|]|%c|%f", &storedAccountNumber, &storedPin, storedName, &storedCurrency, &storedBalance) == 5) {
+            if (storedAccountNumber == getAccountNumber && storedPin == getPin) {
+                printf("\nAccount Holder: %s\n", storedName);
+                printf("Current Balance: %c%.2f\n", storedCurrency, storedBalance);
+                accountsFound = 1;
+                break; 
             }
         }
-        break;
     }
+    if (!accountsFound) {
+        printf("Invalid account number or PIN.\n");
+    }
+    fclose(file);
 }
 
 void deleteAccount() {
@@ -150,14 +250,6 @@ void deleteAccount() {
         perror("No account found. Please create an account first.");
         return;
     }
-
-    fscanf(file, "%d", &accountNumber);
-    fscanf(file, "%d", &pin);
-    fgetc(file);
-    fgets(name, sizeof(name), file);
-    name[strcspn(name, "\n")] = '\0';
-    fscanf(file, "%f", &balance);
-    fclose(file);
 
     printf("Enter account number to delete: ");
     scanf("%d", &getAccountNumber);
@@ -183,7 +275,7 @@ void deleteAccount() {
 
 int main() {
     printf("\nWelcome to the Bank Management System\n");
-    Sleep(1500);
+    Sleep(1000);
     while (1) {
         printf("\n1. Create Account\n");
         printf("2. Display Account(s)\n");
